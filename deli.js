@@ -2,10 +2,23 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
 const mysql = require("mysql2/promise");
 
+const CLIENT_ID = "deli";
+
 const client = new Client({
-  authStrategy: new LocalAuth(),
+  authStrategy: new LocalAuth({
+    clientId: CLIENT_ID,
+  }),
   puppeteer: {
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process",
+      "--disable-gpu",
+    ],
   },
 });
 
@@ -72,7 +85,7 @@ const rupiahFormatter = (number) => {
 };
 
 client.once("ready", () => {
-  console.log("Client is ready!");
+  console.log(`AtoBot with Client ID ${CLIENT_ID} is ready!`);
 });
 
 client.on("qr", (qr) => {
