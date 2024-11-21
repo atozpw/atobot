@@ -27,7 +27,7 @@ const dbConnection = async () => {
     host: "127.0.0.1",
     port: "3306",
     user: "root",
-    password: "secret",
+    password: "root",
     database: "atobot",
   });
 };
@@ -37,6 +37,14 @@ const storeSession = async (from) => {
   await db.execute(
     "insert into `sessions` (`from`, `expired_at`) values (?, unix_timestamp() + (60 * 60))",
     [from]
+  );
+};
+
+const updateSession = async (from, step) => {
+  const db = await dbConnection();
+  await db.execute(
+    "update `sessions` set `step` = ? where `from` = ? and `expired_at` > unix_timestamp()",
+    [from, step]
   );
 };
 
@@ -62,10 +70,10 @@ const getGreeting = async () => {
 const getContext = async (question) => {
   const db = await dbConnection();
   const [rows] = await db.query(
-    "select `id` from `questions` where `question` = ?",
-    [question]
+    "select id, keyword, match (keyword) against (? in natural language mode) as score from keywords where match (keyword) against (? in natural language mode)",
+    [question, question]
   );
-  if (rows.length > 0) return rows[0];
+  if (rows.length > 0) return rows;
   return false;
 };
 
@@ -78,31 +86,33 @@ client.on("qr", (qr) => {
 });
 
 client.on("message", async (message) => {
-  const mentions = await message.getMentions();
-  for (let mention of mentions) {
-    if (mention.isMe) {
-      const contact = await message.getContact();
-      // setTimeout(() => {
-      //   client.sendMessage(message.from, `Hello @${contact.id.user}`, {
-      //     mentions: [contact.id.user + "@c.us"],
-      //   });
-      // }, 10000);
-    }
-  }
+  // const mentions = await message.getMentions();
+  // for (let mention of mentions) {
+  //   if (mention.isMe) {
+  //     const contact = await message.getContact();
+  // setTimeout(() => {
+  //   client.sendMessage(message.from, `Hello @${contact.id.user}`, {
+  //     mentions: [contact.id.user + "@c.us"],
+  //   });
+  // }, 10000);
+  //   }
+  // }
 
-  if (message.body === "!info") {
-    console.log(client.info);
-  }
+  // if (message.body === "!info") {
+  //   console.log(client.info);
+  // }
 
-  if (message.body === "!ping") {
-    const chat = await message.getChat();
-    chat.sendStateTyping();
-    const reply = "pong";
-    setTimeout(() => {
-      chat.clearState();
-      client.sendMessage(message.from, reply);
-    }, 5000);
-  }
+  // if (message.body === "!ping") {
+  //   const chat = await message.getChat();
+  //   chat.sendStateTyping();
+  //   const reply = "pong";
+  //   setTimeout(() => {
+  //     chat.clearState();
+  //     client.sendMessage(message.from, reply);
+  //   }, 5000);
+  // }
+
+  const session = await getSession(message.from);
 
   if (message.body === "!bot") {
     await storeSession(message.from);
@@ -114,18 +124,22 @@ client.on("message", async (message) => {
       chat.clearState();
       client.sendMessage(message.from, greeting.message);
     }, 5000);
-  }
-
-  const session = await getSession(message.from);
-
-  if (session && session.step == 0) {
+  } else if (session && session.step == 0) {
     const context = await getContext(message.body);
     const chat = await message.getChat();
     chat.sendStateTyping();
 
+    let answer = "";
+
+    if (context) {
+      answer = "data ketemu";
+    } else {
+      answer = "tidak ada";
+    }
+
     setTimeout(() => {
       chat.clearState();
-      // client.sendMessage(message.from, greeting.message);
+      client.sendMessage(message.from, answer);
     }, 5000);
   }
 });
