@@ -1,4 +1,5 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
+const qrcode = require("qrcode-terminal");
 
 const CLIENT_ID = "ato";
 
@@ -28,13 +29,27 @@ client.on("qr", (qr) => {
   qrcode.generate(qr, { small: true });
 });
 
-client.on("message_create", async (message) => {
+client.on("message", async (message) => {
+  const mentions = await message.getMentions();
+  for (let mention of mentions) {
+    if (mention.isMe) {
+      const contact = await message.getContact();
+      setTimeout(() => {
+        client.sendMessage(message.from, `Hello @${contact.id.user}`, {
+          mentions: [contact.id.user + "@c.us"],
+        });
+      }, 10000);
+    }
+  }
+
+  if (message.body === "!info") {
+    console.log(client.info);
+  }
+
   if (message.body === "!ping") {
     const chat = await message.getChat();
     chat.sendStateTyping();
-
     const reply = "pong";
-
     setTimeout(() => {
       chat.clearState();
       client.sendMessage(message.from, reply);
