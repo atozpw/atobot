@@ -1,5 +1,6 @@
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode-terminal");
+const mysql = require("mysql2/promise");
 
 const CLIENT_ID = "ato";
 
@@ -21,6 +22,53 @@ const client = new Client({
   },
 });
 
+const dbConnection = async () => {
+  return await mysql.createConnection({
+    host: "127.0.0.1",
+    port: "3306",
+    user: "root",
+    password: "secret",
+    database: "atobot",
+  });
+};
+
+const storeSession = async (from) => {
+  const db = await dbConnection();
+  await db.execute(
+    "insert into `sessions` (`from`, `expired_at`) values (?, unix_timestamp() + (60 * 60))",
+    [from]
+  );
+};
+
+const getSession = async (from) => {
+  const db = await dbConnection();
+  const [rows] = await db.query(
+    "select `id`, `step` from `sessions` where `from` = ? and `expired_at` > unix_timestamp() order by `expired_at` desc limit 1",
+    [from]
+  );
+  if (rows.length > 0) return rows[0];
+  return false;
+};
+
+const getGreeting = async () => {
+  const db = await dbConnection();
+  const [rows] = await db.query(
+    "select `message` from `greetings` order by `created_at` desc limit 1"
+  );
+  if (rows.length > 0) return rows[0];
+  return false;
+};
+
+const getContext = async (question) => {
+  const db = await dbConnection();
+  const [rows] = await db.query(
+    "select `id` from `questions` where `question` = ?",
+    [question]
+  );
+  if (rows.length > 0) return rows[0];
+  return false;
+};
+
 client.once("ready", () => {
   console.log(`AtoBot with Client ID ${CLIENT_ID} is Ready!`);
 });
@@ -34,11 +82,11 @@ client.on("message", async (message) => {
   for (let mention of mentions) {
     if (mention.isMe) {
       const contact = await message.getContact();
-      setTimeout(() => {
-        client.sendMessage(message.from, `Hello @${contact.id.user}`, {
-          mentions: [contact.id.user + "@c.us"],
-        });
-      }, 10000);
+      // setTimeout(() => {
+      //   client.sendMessage(message.from, `Hello @${contact.id.user}`, {
+      //     mentions: [contact.id.user + "@c.us"],
+      //   });
+      // }, 10000);
     }
   }
 
@@ -53,6 +101,31 @@ client.on("message", async (message) => {
     setTimeout(() => {
       chat.clearState();
       client.sendMessage(message.from, reply);
+    }, 5000);
+  }
+
+  if (message.body === "!bot") {
+    await storeSession(message.from);
+    const greeting = await getGreeting();
+    const chat = await message.getChat();
+    chat.sendStateTyping();
+
+    setTimeout(() => {
+      chat.clearState();
+      client.sendMessage(message.from, greeting.message);
+    }, 5000);
+  }
+
+  const session = await getSession(message.from);
+
+  if (session && session.step == 0) {
+    const context = await getContext(message.body);
+    const chat = await message.getChat();
+    chat.sendStateTyping();
+
+    setTimeout(() => {
+      chat.clearState();
+      // client.sendMessage(message.from, greeting.message);
     }, 5000);
   }
 });
